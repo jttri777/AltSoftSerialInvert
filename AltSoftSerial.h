@@ -43,7 +43,8 @@ class AltSoftSerial : public Stream
 {
 public:
 	AltSoftSerial() { }
-  AltSoftSerial(bool inverse);
+    AltSoftSerial(bool rxInvert, bool txInvert);
+	AltSoftSerial(uint8_t rxPin, uint8_t txPin, bool rxInvert = false, bool txInvert = false);
 	~AltSoftSerial() { end(); }
 	static void begin(uint32_t baud) { init((ALTSS_BASE_FREQ + baud / 2) / baud); }
 	static void end();

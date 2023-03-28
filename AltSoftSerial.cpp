@@ -59,7 +59,8 @@ static volatile uint8_t tx_buffer_head;
 static volatile uint8_t tx_buffer_tail;
 #define TX_BUFFER_SIZE 68
 static volatile uint8_t tx_buffer[TX_BUFFER_SIZE];
-static bool invert = false;
+static bool brxInvert = false;
+static bool btxInvert = false;
 
 #ifndef INPUT_PULLUP
 #define INPUT_PULLUP INPUT
@@ -67,14 +68,16 @@ static bool invert = false;
 
 #define MAX_COUNTS_PER_BIT  6241  // 65536 / 10.5
 
-AltSoftSerial::AltSoftSerial(bool inverse)
+AltSoftSerial::AltSoftSerial(bool rxInvert, bool txInvert)
 {
-    invert = inverse;
+    brxInvert = rxInvert;
+	btxInvert = txInvert;
 }
 
-AltSoftSerial::AltSoftSerial(uint8_t rxPin, uint8_t txPin, bool inverse = false)
+AltSoftSerial::AltSoftSerial(uint8_t rxPin, uint8_t txPin, bool rxInvert = false, bool txInvert = false)
 {
-    invert = inverse;
+    brxInvert = rxInvert;
+	btxInvert = txInvert;
 }
 
 void AltSoftSerial::init(uint32_t cycles_per_bit)
@@ -113,11 +116,14 @@ void AltSoftSerial::init(uint32_t cycles_per_bit)
 	rx_stop_ticks = cycles_per_bit * 37 / 4;
 	pinMode(INPUT_CAPTURE_PIN, INPUT_PULLUP);
 	pinMode(OUTPUT_COMPARE_A_PIN, OUTPUT);
-    if (invert) {
-        digitalWrite(OUTPUT_COMPARE_A_PIN, LOW);
-    } else {
-        digitalWrite(OUTPUT_COMPARE_A_PIN, HIGH);
-    } // if-else invert
+	
+	// Invert the TX transmission if required
+	if (txInvert) {
+		digitalWrite(OUTPUT_COMPARE_A_PIN, LOW);
+	} else {
+		digitalWrite(OUTPUT_COMPARE_A_PIN, HIGH);
+	}
+	
 	rx_state = 0;
 	rx_buffer_head = 0;
 	rx_buffer_tail = 0;
@@ -159,7 +165,7 @@ void AltSoftSerial::writeByte(uint8_t b)
 		tx_byte = b;
 		tx_bit = 0;
 		ENABLE_INT_COMPARE_A();
-        if (invert) {
+        if (txInvert) {
             CONFIG_MATCH_SET();
         } else {
             CONFIG_MATCH_CLEAR();
@@ -188,13 +194,13 @@ ISR(COMPARE_A_INTERRUPT)
 		state++;
 		if (bit != tx_bit) {
 			if (bit) {
-                if (invert) {
+                if (txInvert) {
                     CONFIG_MATCH_CLEAR();
                 } else {
                     CONFIG_MATCH_SET();
                 } //if-else invert
 			} else {
-                if (invert) {
+                if (txInvert) {
                     CONFIG_MATCH_SET();
                 } else {
                     CONFIG_MATCH_CLEAR();
@@ -225,7 +231,7 @@ ISR(COMPARE_A_INTERRUPT)
 		tx_buffer_tail = tail;
 		tx_byte = tx_buffer[tail];
 		tx_bit = 0;
-        if (invert) {
+        if (txInvert) {
             CONFIG_MATCH_SET();
         } else {
             CONFIG_MATCH_CLEAR();
@@ -258,14 +264,14 @@ ISR(CAPTURE_INTERRUPT)
 	capture = GET_INPUT_CAPTURE();
 	bit = rx_bit;
 	if (bit) {
-        if (invert) {
+        if (rxInvert) {
             CONFIG_CAPTURE_RISING_EDGE();
         } else {
             CONFIG_CAPTURE_FALLING_EDGE();
         } //if-else invert;
 		rx_bit = 0;
 	} else {
-        if (invert) {
+        if (rxInvert) {
             CONFIG_CAPTURE_FALLING_EDGE();
         } else {
             CONFIG_CAPTURE_RISING_EDGE();
@@ -298,7 +304,7 @@ ISR(CAPTURE_INTERRUPT)
 					rx_buffer[head] = rx_byte;
 					rx_buffer_head = head;
 				}
-                if (invert) {
+                if (rxInvert) {
                     CONFIG_CAPTURE_RISING_EDGE();
                 } else {
                     CONFIG_CAPTURE_FALLING_EDGE();
@@ -319,7 +325,7 @@ ISR(COMPARE_B_INTERRUPT)
 	uint8_t head, state, bit;
 
 	DISABLE_INT_COMPARE_B();
-    if (invert) {
+    if (rxInvert) {
         CONFIG_CAPTURE_RISING_EDGE();
     } else {
         CONFIG_CAPTURE_FALLING_EDGE();
@@ -337,7 +343,7 @@ ISR(COMPARE_B_INTERRUPT)
 		rx_buffer_head = head;
 	}
 	rx_state = 0;
-    if (invert) {
+    if (rxInvert) {
         CONFIG_CAPTURE_RISING_EDGE();
     } else {
         CONFIG_CAPTURE_FALLING_EDGE();
